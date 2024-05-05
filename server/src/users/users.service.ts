@@ -1,9 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
+import { NotFoundError } from 'rxjs';
+
+type A = User | null;
+
+class Pepe {
+  constructor() {}
+}
+
+type B = Pepe | null;
 
 @Injectable()
 export class UsersService {
@@ -28,8 +41,14 @@ export class UsersService {
     return this.userRepository.findOneBy({ email });
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
+  async update(id: string, updateUserDto: UpdateUserDto) {
+    const user = await this.userRepository.findOneBy({ id });
+
+    if (!user) {
+      throw new NotFoundException(`User #${id} not found`);
+    }
+
+    return this.userRepository.update(id, { ...updateUserDto });
   }
 
   remove(id: number) {

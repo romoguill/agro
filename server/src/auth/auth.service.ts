@@ -53,6 +53,10 @@ export class AuthService {
       expiresIn: this.configService.getOrThrow('REFRESH_TOKEN_EXPIRES_IN'),
     });
 
+    user.refreshToken = refreshToken;
+
+    await this.usersService.update(user.id, user);
+
     return { accessToken, refreshToken };
   }
 }

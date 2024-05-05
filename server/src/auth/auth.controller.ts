@@ -25,11 +25,12 @@ export class AuthController {
   ) {}
 
   @Post('login')
-  async login(@Res() res: Response, @Body() loginDto: LoginDto) {
+  async login(
+    @Res({ passthrough: true }) res: Response,
+    @Body() loginDto: LoginDto,
+  ) {
     const { accessToken, refreshToken } =
       await this.authService.login(loginDto);
-
-    console.log(`${this.configService.getOrThrow('API_URL')}/auth/refresh`);
 
     res.cookie('access_token', accessToken, {
       maxAge: this.configService.getOrThrow('ACCESS_TOKEN_EXPIRES_IN'),
@@ -37,8 +38,6 @@ export class AuthController {
       sameSite: 'strict',
       secure: this.configService.getOrThrow('NODE_ENV') === 'production',
     });
-
-    console.log('hola');
 
     res.cookie('refresh_token', refreshToken, {
       maxAge: this.configService.getOrThrow('REFRESH_TOKEN_EXPIRES_IN'),
