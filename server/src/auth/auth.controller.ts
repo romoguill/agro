@@ -5,6 +5,7 @@ import {
   Get,
   Post,
   Req,
+  Res,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -12,16 +13,43 @@ import { LoginDto } from './dto/login.dto';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { AuthGuard } from './auth.guard';
-import { Request } from 'express';
+import { Request, Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 
 @UseInterceptors(ClassSerializerInterceptor)
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('login')
-  login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(@Res() res: Response, @Body() loginDto: LoginDto) {
+    const { accessToken, refreshToken } =
+      await this.authService.login(loginDto);
+
+    console.log(`${this.configService.getOrThrow('API_URL')}/auth/refresh`);
+
+    res.cookie('access_token', accessToken, {
+      maxAge: this.configService.getOrThrow('ACCESS_TOKEN_EXPIRES_IN'),
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: this.configService.getOrThrow('NODE_ENV') === 'production',
+    });
+
+    console.log('hola');
+
+    res.cookie('refresh_token', refreshToken, {
+      maxAge: this.configService.getOrThrow('REFRESH_TOKEN_EXPIRES_IN'),
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: this.configService.getOrThrow('NODE_ENV') === 'production',
+      path: `${this.configService.getOrThrow('API_URL')}/auth/refresh`,
+    });
+
+    console.log('fin');
+    return { accessToken, refreshToken };
   }
 
   @Post('register')

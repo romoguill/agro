@@ -12,7 +12,6 @@ import { AuthService } from './auth.service';
       useFactory: (configService: ConfigService) => ({
         global: true,
         secret: configService.getOrThrow('JWT_SECRET'),
-        signOptions: { expiresIn: configService.getOrThrow('JWT_EXPIRES_IN') },
       }),
       inject: [ConfigService],
     }),
