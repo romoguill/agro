@@ -9,7 +9,7 @@ import { AuthService } from './auth.service';
   imports: [
     UsersModule,
     JwtModule.registerAsync({
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         global: true,
         secret: configService.getOrThrow('JWT_SECRET'),
         signOptions: { expiresIn: configService.getOrThrow('JWT_EXPIRES_IN') },

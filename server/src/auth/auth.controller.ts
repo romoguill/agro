@@ -1,8 +1,20 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  ClassSerializerInterceptor,
+  Controller,
+  Get,
+  Post,
+  Req,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { LoginDto } from './dto/login.dto';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { AuthGuard } from './auth.guard';
+import { Request } from 'express';
 
+@UseInterceptors(ClassSerializerInterceptor)
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -20,5 +32,11 @@ export class AuthController {
   @Get('protected')
   getHello(): string {
     return 'hello';
+  }
+
+  @Get('me')
+  @UseGuards(AuthGuard)
+  getMe(@Req() req: Request) {
+    return req.user;
   }
 }
