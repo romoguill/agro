@@ -85,8 +85,10 @@ export class AuthController {
 
       return { accessToken };
     } catch (error) {
-      res.clearCookie('access_token', this.accessCookieConfig);
-      res.clearCookie('refresh_token', this.refreshCookieConfig);
+      const { maxAge: _a, ...deleteOptionsRefresh } = this.refreshCookieConfig;
+      const { maxAge: _b, ...deleteOptionsAccess } = this.accessCookieConfig;
+      res.clearCookie('access_token', deleteOptionsAccess);
+      res.clearCookie('refresh_token', deleteOptionsRefresh);
       throw error;
     }
   }
