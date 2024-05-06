@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { LoginDto } from './dto/login.dto';
@@ -46,17 +47,44 @@ export class AuthService {
 
     const payload = { email: user.email, sub: user.id };
 
-    const accessToken = this.jwtService.sign(payload, {
-      expiresIn: this.configService.getOrThrow('ACCESS_TOKEN_EXPIRES_IN'),
-    });
-    const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: this.configService.getOrThrow('REFRESH_TOKEN_EXPIRES_IN'),
-    });
-
-    user.refreshToken = refreshToken;
+    const accessToken = this.generateToken(payload, 'access_token');
+    const refreshToken = this.generateToken(payload, 'refresh_token');
 
     await this.usersService.update(user.id, user);
 
     return { accessToken, refreshToken };
+  }
+
+  // Verifies if jwt is valid (checks secret and expiration). If its ok, generate a new access token
+  async refresh(refreshToken: string) {
+    try {
+      const jwtVerified = this.jwtService.verify<JWTPayload>(refreshToken);
+
+      const user = await this.usersService.findOne(jwtVerified.sub);
+
+      const payload = { email: user.email, sub: user.id };
+
+      return this.generateToken(payload, 'access_token');
+    } catch (error) {
+      throw new UnauthorizedException(
+        'Invalid refresh token. Must sign in again.',
+      );
+    }
+  }
+
+  // Util for generating both access or refresh token
+  private generateToken(
+    payload: Omit<JWTPayload, 'iat' | 'exp'>,
+    type: 'access_token' | 'refresh_token',
+  ) {
+    if (type === 'access_token') {
+      return this.jwtService.sign(payload, {
+        expiresIn: this.configService.getOrThrow('ACCESS_TOKEN_EXPIRES_IN'),
+      });
+    } else {
+      return this.jwtService.sign(payload, {
+        expiresIn: this.configService.getOrThrow('REFRESH_TOKEN_EXPIRES_IN'),
+      });
+    }
   }
 }

@@ -6,6 +6,7 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -13,16 +14,34 @@ import { LoginDto } from './dto/login.dto';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { AuthGuard } from './auth.guard';
-import { Request, Response } from 'express';
+import { CookieOptions, Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 
 @UseInterceptors(ClassSerializerInterceptor)
 @Controller('auth')
 export class AuthController {
+  private readonly accessCookieConfig: CookieOptions;
+  private readonly refreshCookieConfig: CookieOptions;
+
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    this.accessCookieConfig = {
+      maxAge: this.configService.getOrThrow('ACCESS_TOKEN_EXPIRES_IN'),
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: this.configService.getOrThrow('NODE_ENV') === 'production',
+    };
+
+    this.refreshCookieConfig = {
+      maxAge: this.configService.getOrThrow('REFRESH_TOKEN_EXPIRES_IN'),
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: this.configService.getOrThrow('NODE_ENV') === 'production',
+      path: `${this.configService.getOrThrow('API_URL')}/auth/refresh`,
+    };
+  }
 
   @Post('login')
   async login(
@@ -32,20 +51,9 @@ export class AuthController {
     const { accessToken, refreshToken } =
       await this.authService.login(loginDto);
 
-    res.cookie('access_token', accessToken, {
-      maxAge: this.configService.getOrThrow('ACCESS_TOKEN_EXPIRES_IN'),
-      httpOnly: true,
-      sameSite: 'strict',
-      secure: this.configService.getOrThrow('NODE_ENV') === 'production',
-    });
+    res.cookie('access_token', accessToken, this.accessCookieConfig);
 
-    res.cookie('refresh_token', refreshToken, {
-      maxAge: this.configService.getOrThrow('REFRESH_TOKEN_EXPIRES_IN'),
-      httpOnly: true,
-      sameSite: 'strict',
-      secure: this.configService.getOrThrow('NODE_ENV') === 'production',
-      path: `${this.configService.getOrThrow('API_URL')}/auth/refresh`,
-    });
+    res.cookie('refresh_token', refreshToken, this.refreshCookieConfig);
 
     console.log('fin');
     return { accessToken, refreshToken };
@@ -56,14 +64,41 @@ export class AuthController {
     return this.authService.register(registerDto);
   }
 
-  @Get('protected')
-  getHello(): string {
-    return 'hello';
+  // If refreshing is successfull set the access token in cookie
+  // If refreshing fails, delete cookies from user and ask to sign in again
+  @Post('refresh')
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = req.cookies['refresh_token'];
+
+    if (!refreshToken)
+      throw new UnauthorizedException(
+        'Invalid refresh token. Must sign in again.',
+      );
+
+    try {
+      const accessToken = await this.authService.refresh(refreshToken);
+
+      res.cookie('access_token', accessToken, this.accessCookieConfig);
+
+      return { accessToken };
+    } catch (error) {
+      res.clearCookie('access_token', this.accessCookieConfig);
+      res.clearCookie('refresh_token', this.refreshCookieConfig);
+      throw error;
+    }
   }
 
   @Get('me')
   @UseGuards(AuthGuard)
   getMe(@Req() req: Request) {
     return req.user;
+  }
+
+  @Get('protected')
+  getHello(): string {
+    return 'hello';
   }
 }
