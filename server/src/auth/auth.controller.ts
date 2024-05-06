@@ -16,7 +16,9 @@ import { RegisterDto } from './dto/register.dto';
 import { AuthGuard } from './auth.guard';
 import { CookieOptions, Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Authentication')
 @UseInterceptors(ClassSerializerInterceptor)
 @Controller('auth')
 export class AuthController {
@@ -47,7 +49,7 @@ export class AuthController {
   async login(
     @Res({ passthrough: true }) res: Response,
     @Body() loginDto: LoginDto,
-  ) {
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     const { accessToken, refreshToken } =
       await this.authService.login(loginDto);
 
@@ -110,6 +112,11 @@ export class AuthController {
       res.clearCookie('refresh_token', deleteOptionsRefresh);
       return;
     }
+  }
+
+  @Get('/google')
+  googleSignIn() {
+    this.authService.googleSignIn();
   }
 
   @Get('me')

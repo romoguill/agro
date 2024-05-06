@@ -80,6 +80,10 @@ export class AuthService {
     await this.usersService.update(user.id, { refreshToken: null });
   }
 
+  async googleSignIn() {
+    this.createGoogleOAuthURL();
+  }
+
   // Util for generating both access or refresh token
   private generateToken(
     payload: Omit<JWTPayload, 'iat' | 'exp'>,
@@ -94,5 +98,30 @@ export class AuthService {
         expiresIn: this.configService.getOrThrow('REFRESH_TOKEN_EXPIRES_IN'),
       });
     }
+  }
+
+  private createGoogleOAuthURL() {
+    const baseUrl = 'http://accounts.google.com/o/oauth2/v2/auth';
+
+    const options = {
+      redirect_uri: this.configService.getOrThrow('GOOGLE_CALLBACK_URL'),
+      client_id: this.configService.getOrThrow('GOOGLE_CLIENT_ID'),
+      access_type: 'offline',
+      response_type: 'code',
+      propmpt: 'consent',
+      scope: [
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile',
+      ].join(' '),
+    };
+
+    const searchParams = new URLSearchParams(options);
+
+    const url = new URL(baseUrl);
+
+    url.search = searchParams.toString();
+
+    console.log(url);
+    return url;
   }
 }

@@ -18,8 +18,10 @@ async function bootstrap() {
   );
 
   const options = new DocumentBuilder()
-    .setTitle('Iluvcoffee')
-    .setDescription('Coffee application')
+    .setTitle('Parking API')
+    .setDescription(
+      'Documentation for a parking application that lets you find near garages and book a spot',
+    )
     .setVersion('1.0')
     .build();
 
