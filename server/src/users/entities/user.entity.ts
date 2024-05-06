@@ -19,6 +19,6 @@ export class User {
   @Column({ default: 'user' })
   role: string;
 
-  @Column({ nullable: true })
-  refreshToken: string;
+  @Column({ nullable: true, type: String })
+  refreshToken?: string | null;
 }
