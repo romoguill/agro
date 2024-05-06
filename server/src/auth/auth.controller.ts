@@ -91,6 +91,25 @@ export class AuthController {
     }
   }
 
+  // Delete refreshtoken from user db and delete cookies
+  @Post('/logout')
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const refreshToken = req.cookies['refresh_token'];
+    console.log({ refreshToken });
+
+    try {
+      await this.authService.logout(refreshToken);
+    } catch (error) {
+      console.log(error);
+    } finally {
+      const { maxAge: _a, ...deleteOptionsRefresh } = this.refreshCookieConfig;
+      const { maxAge: _b, ...deleteOptionsAccess } = this.accessCookieConfig;
+      res.clearCookie('access_token', deleteOptionsAccess);
+      res.clearCookie('refresh_token', deleteOptionsRefresh);
+      return;
+    }
+  }
+
   @Get('me')
   @UseGuards(AuthGuard)
   getMe(@Req() req: Request) {

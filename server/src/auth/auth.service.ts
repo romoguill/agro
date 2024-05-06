@@ -72,6 +72,14 @@ export class AuthService {
     }
   }
 
+  async logout(refreshToken: string) {
+    const jwtVerified = this.jwtService.verify<JWTPayload>(refreshToken);
+
+    const user = await this.usersService.findOne(jwtVerified.sub);
+
+    await this.usersService.update(user.id, { refreshToken: null });
+  }
+
   // Util for generating both access or refresh token
   private generateToken(
     payload: Omit<JWTPayload, 'iat' | 'exp'>,
