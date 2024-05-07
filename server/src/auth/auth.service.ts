@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -11,6 +12,7 @@ import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
+import jwt from 'jsonwebtoken';
 
 @Injectable()
 export class AuthService {
@@ -82,8 +84,8 @@ export class AuthService {
     await this.usersService.update(user.id, { refreshToken: null });
   }
 
-  // Creates a request to google auth server for the user to login with their credentials
-  async googleConsentScreen() {
+  // Returns the url for redirecting user to the consent sceen to authorize email and profile scopes access
+  async getGoogleConsentUrl() {
     const baseUrl = 'http://accounts.google.com/o/oauth2/v2/auth';
 
     const options = {
@@ -103,12 +105,20 @@ export class AuthService {
     const url = new URL(baseUrl);
 
     url.search = searchParams.toString();
-
-    return this.httpService.get(url.href);
+    return url;
   }
 
   // Parses response from google auth server
   async googleExchangeTokens(code: string) {
+    type GoogleResponse = {
+      access_token: string;
+      expires_in: number;
+      refresh_token: string;
+      scope: string;
+      token_type: string;
+      id_token: string;
+    };
+
     const baseUrl = 'https://oauth2.googleapis.com/token';
 
     const options = {
@@ -120,15 +130,58 @@ export class AuthService {
     };
 
     try {
-      const response = await this.httpService.axiosRef.post(baseUrl, options, {
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await this.httpService.axiosRef.post<GoogleResponse>(
+        baseUrl,
+        options,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
         },
-      });
+      );
 
       return response.data;
     } catch (error) {
       console.log(error);
+      throw new InternalServerErrorException(
+        'Something went wrong with Google Auth',
+      );
+    }
+  }
+
+  async getGoogleProfile(idToken: string, accessToken: string) {
+    type GoogleUser = {
+      iss: string;
+      azp: string;
+      aud: string;
+      sub: string;
+      email: string;
+      email_verified: boolean;
+      at_hash: string;
+      name: string;
+      picture: string;
+      given_name: string;
+      family_name: string;
+      iat: Date;
+      exp: Date;
+    };
+
+    const baseUrl = `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${accessToken}`;
+
+    try {
+      const response = await this.httpService.axiosRef.get(baseUrl, {
+        // headers: {
+        //   Authorization: `Bearer ${idToken + 'r'}`,
+        // },
+      });
+
+      console.log(response.data);
+      return response.data;
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException(
+        'Something went wrong with Google Auth',
+      );
     }
   }
 
@@ -148,28 +201,29 @@ export class AuthService {
     }
   }
 
-  private createGoogleOAuthURL() {
-    const baseUrl = 'http://accounts.google.com/o/oauth2/v2/auth';
-
-    const options = {
-      redirect_uri: this.configService.getOrThrow('GOOGLE_CALLBACK_URL'),
-      client_id: this.configService.getOrThrow('GOOGLE_CLIENT_ID'),
-      access_type: 'offline',
-      response_type: 'code',
-      propmpt: 'consent',
-      scope: [
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile',
-      ].join(' '),
+  signInWithGoogle(idToken: string) {
+    type GoogleUser = {
+      iss: string;
+      azp: string;
+      aud: string;
+      sub: string;
+      email: string;
+      email_verified: boolean;
+      at_hash: string;
+      name: string;
+      picture: string;
+      given_name: string;
+      family_name: string;
+      iat: Date;
+      exp: Date;
     };
 
-    const searchParams = new URLSearchParams(options);
+    const userPayload = jwt.decode(idToken) as unknown as GoogleUser;
 
-    const url = new URL(baseUrl);
+    // Check if user exists. The idea is that if the user had logged in before with credentials, update data with google credentials
+    const user = this.usersService.findOneByEmail(userPayload.email);
 
-    url.search = searchParams.toString();
-
-    console.log(url);
-    return url;
+    if (!user) {
+    }
   }
 }

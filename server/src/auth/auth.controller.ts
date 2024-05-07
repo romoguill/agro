@@ -117,13 +117,22 @@ export class AuthController {
   }
 
   @Get('/google')
-  googleConsentScreen() {
-    this.authService.googleConsentScreen();
+  async googleConsentScreen(@Res() res: Response) {
+    const url = await this.authService.getGoogleConsentUrl();
+    res.redirect(url.href);
   }
 
   @Get('/google/callback')
-  googleCallback(@Query('code') code: string) {
-    this.authService.googleExchangeTokens(code);
+  async googleCallback(@Query('code') code: string) {
+    const { id_token, access_token } =
+      await this.authService.googleExchangeTokens(code);
+
+    // Couldn't find this part in google docs. Basicaly the id_token has the user profile, but I don't think I can trust that. Better to make a sepparate request to google's profiles service and check if provided access token works
+    const googleProfile = await this.authService.getGoogleProfile(
+      id_token,
+      access_token,
+    );
+    return 'logged in';
   }
 
   @Get('me')
