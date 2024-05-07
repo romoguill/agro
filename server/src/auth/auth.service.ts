@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  HttpException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -13,6 +14,26 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import jwt from 'jsonwebtoken';
+
+type GoogleResponse = {
+  access_token: string;
+  expires_in: number;
+  refresh_token: string;
+  scope: string;
+  token_type: string;
+  id_token: string;
+};
+
+type GoogleUser = {
+  id: string;
+  email: string;
+  verified_email: boolean;
+  name: string;
+  given_name: string;
+  family_name: string;
+  picture: string;
+  locale: string;
+};
 
 @Injectable()
 export class AuthService {
@@ -53,6 +74,8 @@ export class AuthService {
 
     const accessToken = this.generateToken(payload, 'access_token');
     const refreshToken = this.generateToken(payload, 'refresh_token');
+
+    user.refreshToken = refreshToken;
 
     await this.usersService.update(user.id, user);
 
@@ -108,17 +131,55 @@ export class AuthService {
     return url;
   }
 
-  // Parses response from google auth server
-  async googleExchangeTokens(code: string) {
-    type GoogleResponse = {
-      access_token: string;
-      expires_in: number;
-      refresh_token: string;
-      scope: string;
-      token_type: string;
-      id_token: string;
-    };
+  // Main service for handling OAuth flow after recieving the PKCE code
+  async googleOAuth(code: string) {
+    try {
+      const { id_token, access_token } = await this.googleExchangeTokens(code);
 
+      // Couldn't find this part in google docs. Basicaly the id_token has the user profile, but I don't think I can trust that. Better to make a separate request to google's profiles service and check if provided access token works
+      const googleProfile = await this.getGoogleProfile(id_token, access_token);
+
+      console.log(googleProfile);
+      // User must have verified email in google or else can't trust the user to own the email
+      if (!googleProfile.verified_email) {
+        throw new UnauthorizedException('Email provided is not verified');
+      }
+
+      let user = await this.usersService.findOneByEmail(googleProfile.email);
+
+      // Create user
+      if (!user) {
+        user = await this.usersService.create({
+          email: googleProfile.email,
+          name: googleProfile.name,
+          googleId: googleProfile.id,
+        });
+      }
+
+      const payload = { email: user.email, sub: user.id };
+
+      const accessToken = this.generateToken(payload, 'access_token');
+      const refreshToken = this.generateToken(payload, 'refresh_token');
+
+      user.refreshToken = refreshToken;
+
+      await this.usersService.update(user.id, user);
+
+      return { accessToken, refreshToken };
+    } catch (error) {
+      console.log(error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        'Something went wrong with Google Auth',
+      );
+    }
+  }
+
+  // Parses response from google auth server
+  private async googleExchangeTokens(code: string) {
     const baseUrl = 'https://oauth2.googleapis.com/token';
 
     const options = {
@@ -129,53 +190,24 @@ export class AuthService {
       grant_type: 'authorization_code',
     };
 
-    try {
-      const response = await this.httpService.axiosRef.post<GoogleResponse>(
-        baseUrl,
-        options,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
+    const response = await this.httpService.axiosRef.post<GoogleResponse>(
+      baseUrl,
+      options,
+      {
+        headers: {
+          'Content-Type': 'application/json',
         },
-      );
+      },
+    );
 
-      return response.data;
-    } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException(
-        'Something went wrong with Google Auth',
-      );
-    }
+    return response.data;
   }
 
-  async getGoogleProfile(idToken: string, accessToken: string) {
-    type GoogleUser = {
-      iss: string;
-      azp: string;
-      aud: string;
-      sub: string;
-      email: string;
-      email_verified: boolean;
-      at_hash: string;
-      name: string;
-      picture: string;
-      given_name: string;
-      family_name: string;
-      iat: Date;
-      exp: Date;
-    };
-
+  private async getGoogleProfile(idToken: string, accessToken: string) {
     const baseUrl = `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${accessToken}`;
 
     try {
-      const response = await this.httpService.axiosRef.get(baseUrl, {
-        // headers: {
-        //   Authorization: `Bearer ${idToken + 'r'}`,
-        // },
-      });
-
-      console.log(response.data);
+      const response = await this.httpService.axiosRef.get<GoogleUser>(baseUrl);
       return response.data;
     } catch (error) {
       console.log(error);

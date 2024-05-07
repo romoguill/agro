@@ -59,7 +59,6 @@ export class AuthController {
 
     res.cookie('refresh_token', refreshToken, this.refreshCookieConfig);
 
-    console.log('fin');
     return { accessToken, refreshToken };
   }
 
@@ -123,16 +122,18 @@ export class AuthController {
   }
 
   @Get('/google/callback')
-  async googleCallback(@Query('code') code: string) {
-    const { id_token, access_token } =
-      await this.authService.googleExchangeTokens(code);
+  async googleCallback(
+    @Query('code') code: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken } =
+      await this.authService.googleOAuth(code);
 
-    // Couldn't find this part in google docs. Basicaly the id_token has the user profile, but I don't think I can trust that. Better to make a sepparate request to google's profiles service and check if provided access token works
-    const googleProfile = await this.authService.getGoogleProfile(
-      id_token,
-      access_token,
-    );
-    return 'logged in';
+    res.cookie('access_token', accessToken, this.accessCookieConfig);
+
+    res.cookie('refresh_token', refreshToken, this.refreshCookieConfig);
+
+    return { accessToken, refreshToken };
   }
 
   @Get('me')

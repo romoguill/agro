@@ -1,5 +1,5 @@
 import { Exclude } from 'class-transformer';
-import { ValidateIf } from 'class-validator';
+import { IsNotEmpty, ValidateIf } from 'class-validator';
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
@@ -16,9 +16,10 @@ export class User {
   @Column({ nullable: true })
   googleId: string;
 
-  @ValidateIf((entity) => entity.googleId === null)
+  @ValidateIf((entity) => entity.googleId !== null)
+  @IsNotEmpty()
   @Exclude({ toPlainOnly: true })
-  @Column()
+  @Column({ nullable: true })
   password: string;
 
   @Column({ default: 'user' })
