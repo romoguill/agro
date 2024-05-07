@@ -3,7 +3,9 @@ import {
   ClassSerializerInterceptor,
   Controller,
   Get,
+  Param,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -115,8 +117,13 @@ export class AuthController {
   }
 
   @Get('/google')
-  googleSignIn() {
-    this.authService.googleSignIn();
+  googleConsentScreen() {
+    this.authService.googleConsentScreen();
+  }
+
+  @Get('/google/callback')
+  googleCallback(@Query('code') code: string) {
+    this.authService.googleExchangeTokens(code);
   }
 
   @Get('me')

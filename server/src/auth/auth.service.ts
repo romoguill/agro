@@ -10,6 +10,7 @@ import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { HttpService } from '@nestjs/axios';
 
 @Injectable()
 export class AuthService {
@@ -17,6 +18,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly httpService: HttpService,
   ) {}
 
   async register({ email, password, name }: RegisterDto) {
@@ -80,8 +82,54 @@ export class AuthService {
     await this.usersService.update(user.id, { refreshToken: null });
   }
 
-  async googleSignIn() {
-    this.createGoogleOAuthURL();
+  // Creates a request to google auth server for the user to login with their credentials
+  async googleConsentScreen() {
+    const baseUrl = 'http://accounts.google.com/o/oauth2/v2/auth';
+
+    const options = {
+      redirect_uri: this.configService.getOrThrow('GOOGLE_CALLBACK_URL'),
+      client_id: this.configService.getOrThrow('GOOGLE_CLIENT_ID'),
+      access_type: 'offline',
+      response_type: 'code',
+      propmpt: 'consent',
+      scope: [
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile',
+      ].join(' '),
+    };
+
+    const searchParams = new URLSearchParams(options);
+
+    const url = new URL(baseUrl);
+
+    url.search = searchParams.toString();
+
+    return this.httpService.get(url.href);
+  }
+
+  // Parses response from google auth server
+  async googleExchangeTokens(code: string) {
+    const baseUrl = 'https://oauth2.googleapis.com/token';
+
+    const options = {
+      code,
+      client_id: this.configService.getOrThrow('GOOGLE_CLIENT_ID'),
+      client_secret: this.configService.getOrThrow('GOOGLE_CLIENT_SECRET'),
+      redirect_uri: this.configService.getOrThrow('GOOGLE_CALLBACK_URL'),
+      grant_type: 'authorization_code',
+    };
+
+    try {
+      const response = await this.httpService.axiosRef.post(baseUrl, options, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   // Util for generating both access or refresh token
