@@ -18,7 +18,16 @@ import { RegisterDto } from './dto/register.dto';
 import { AuthGuard } from './auth.guard';
 import { CookieOptions, Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiConflictResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { TokensResponseDTO } from './dto/tokens-response.dto';
+import { RefreshResponseDTO } from './dto/refresh-response.dto';
 
 @ApiTags('Authentication')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -47,11 +56,12 @@ export class AuthController {
     };
   }
 
+  @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
   @Post('login')
   async login(
     @Res({ passthrough: true }) res: Response,
     @Body() loginDto: LoginDto,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<TokensResponseDTO> {
     const { accessToken, refreshToken } =
       await this.authService.login(loginDto);
 
@@ -62,6 +72,7 @@ export class AuthController {
     return { accessToken, refreshToken };
   }
 
+  @ApiConflictResponse({ description: 'Email already in use' })
   @Post('register')
   register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
@@ -69,11 +80,14 @@ export class AuthController {
 
   // If refreshing is successfull set the access token in cookie
   // If refreshing fails, delete cookies from user and ask to sign in again
+  @ApiUnauthorizedResponse({
+    description: 'Invalid refresh token. Must sign in again.',
+  })
   @Post('refresh')
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<RefreshResponseDTO> {
     const refreshToken = req.cookies['refresh_token'];
 
     if (!refreshToken)
@@ -115,17 +129,24 @@ export class AuthController {
     }
   }
 
+  @ApiOperation({
+    description: 'Builds auth url and redirect to google consent screen',
+  })
+  @ApiResponse({
+    status: 303,
+  })
   @Get('/google')
   async googleConsentScreen(@Res() res: Response) {
     const url = await this.authService.getGoogleConsentUrl();
-    res.redirect(url.href);
+    return res.status(303).redirect(url.href);
   }
 
+  @ApiUnauthorizedResponse({ description: 'Email provided is not verified' })
   @Get('/google/callback')
   async googleCallback(
     @Query('code') code: string,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<TokensResponseDTO> {
     const { accessToken, refreshToken } =
       await this.authService.googleOAuth(code);
 
