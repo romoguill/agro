@@ -204,10 +204,17 @@ export class AuthService {
   }
 
   private async getGoogleProfile(idToken: string, accessToken: string) {
-    const baseUrl = `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${accessToken}`;
+    const baseUrl = `https://www.googleapis.com/oauth2/v1/userinfo?alt=json`;
 
     try {
-      const response = await this.httpService.axiosRef.get<GoogleUser>(baseUrl);
+      const response = await this.httpService.axiosRef.get<GoogleUser>(
+        baseUrl,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
       return response.data;
     } catch (error) {
       console.log(error);
