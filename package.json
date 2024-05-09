@@ -8,12 +8,15 @@
     "server"
   ],
   "scripts": {
-    "dev": "turbo run dev"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "cross-env NODE_ENV=production node server/dist/main "
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "turbo": "^1.13.3"
   }
 }

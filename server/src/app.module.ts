@@ -6,6 +6,8 @@ import { DatabaseModule } from './database/database.module';
 import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from './users/users.module';
 import { LoggerMiddleware } from './logger/logger.middleware';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 @Module({
   imports: [
@@ -18,6 +20,9 @@ import { LoggerMiddleware } from './logger/logger.middleware';
             ? '.env.test'
             : '.env.development',
       cache: true,
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '../..', 'client', 'dist'),
     }),
     AuthModule,
     DatabaseModule,
