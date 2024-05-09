@@ -7,9 +7,19 @@ import {
   ModalHeader,
   useDisclosure,
 } from '@nextui-org/react';
+import { login } from '../../api/queries';
 
 function LoginButton() {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const response = await login({
+      email: 'test4@test.com',
+      password: 'pass123',
+    });
+    console.log(response);
+  };
 
   return (
     <>
@@ -19,12 +29,17 @@ function LoginButton() {
           <ModalHeader>Login</ModalHeader>
           <ModalBody>
             <div>
-              <Input type='email' label='Email' />
-              <Input type='password' label='Password' />
+              <form onSubmit={handleSubmit}>
+                <Input type='email' label='Email' />
+                <Input type='password' label='Password' />
+                <Button type='submit'>Login</Button>
+              </form>
             </div>
             or
             <div>
-              <Button variant='solid'>Sign in with Google</Button>
+              <Button type='button' variant='solid'>
+                Sign in with Google
+              </Button>
             </div>
           </ModalBody>
         </ModalContent>
