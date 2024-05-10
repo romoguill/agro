@@ -17,12 +17,17 @@ export class AuthGuard implements CanActivate {
 
     const accessToken = request.cookies.access_token;
 
-    if (!accessToken) return false;
+    if (!accessToken)
+      throw new UnauthorizedException(
+        'Must be authenticated to access this endpoint.',
+      );
 
     try {
       this.jwtService.verify<JWTPayload>(accessToken);
     } catch (error) {
-      return false;
+      throw new UnauthorizedException(
+        'Must be authenticated to access this endpoint.',
+      );
     }
 
     return true;
